@@ -2,10 +2,12 @@ package httprouter
 
 import (
 	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/beatlabs/patron/component/http/middleware"
-	"github.com/beatlabs/patron/component/http/v2"
+	v2 "github.com/beatlabs/patron/component/http/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -162,4 +164,39 @@ func TestDisableProfiling(t *testing.T) {
 	err := EnableExpVarProfiling()(cfg)
 	assert.NoError(t, err)
 	assert.True(t, cfg.enableProfilingExpVar)
+}
+
+func TestVars(t *testing.T) {
+	t.Parallel()
+	type args struct {
+		routePath string
+		reqPath   string
+	}
+	tests := map[string]struct {
+		args         args
+		expectedVars map[string]string
+	}{
+		"no vars": {args: args{routePath: "/api/users", reqPath: "/api/users"}, expectedVars: map[string]string{}},
+		"vars":    {args: args{routePath: "/api/users/:user", reqPath: "/api/users/patron"}, expectedVars: map[string]string{"user": "patron"}},
+	}
+	for name, tt := range tests {
+		tt := tt
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var wg sync.WaitGroup
+			defer wg.Wait()
+			wg.Add(1)
+			route, err := v2.NewRoute(http.MethodGet, tt.args.routePath, func(w http.ResponseWriter, r *http.Request) {
+				vars := Vars(r)
+				require.Equal(t, tt.expectedVars, vars)
+				wg.Done()
+			})
+			require.NoError(t, err)
+			router, err := New(Routes(route))
+			require.NoError(t, err)
+			rec := httptest.NewRecorder()
+			req, err := http.NewRequest(http.MethodGet, tt.args.reqPath, nil)
+			router.ServeHTTP(rec, req)
+		})
+	}
 }

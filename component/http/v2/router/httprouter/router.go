@@ -3,10 +3,11 @@ package httprouter
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/beatlabs/patron/component/http/middleware"
-	"github.com/beatlabs/patron/component/http/v2"
+	v2 "github.com/beatlabs/patron/component/http/v2"
 	"github.com/beatlabs/patron/log"
 	"github.com/julienschmidt/httprouter"
 )
@@ -151,4 +152,13 @@ func EnableExpVarProfiling() OptionFunc {
 		cfg.enableProfilingExpVar = true
 		return nil
 	}
+}
+
+// Vars returns the route variables for the current request, if any.
+func Vars(r *http.Request) map[string]string {
+	params := make(map[string]string, 0)
+	for _, p := range httprouter.ParamsFromContext(r.Context()) {
+		params[p.Key] = p.Value
+	}
+	return params
 }
